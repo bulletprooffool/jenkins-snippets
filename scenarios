@@ -1,0 +1,54 @@
+node {
+    // Define variables
+    def SCENARIO = ''
+    def BRANCH = env.BRANCH_NAME
+    def MANUAL_TRIGGER = false
+    def SCHEDULED_TRIGGER = false
+    def TAG_ID = ''
+
+    // Check for scenario 1
+    if (BRANCH == 'develop') {
+        SCENARIO = 'Scenario 1'
+    }
+
+    // Check for scenario 2
+    if (BRANCH == 'release') {
+        SCENARIO = 'Scenario 2'
+    }
+
+    // Check for scenario 3
+    if (BRANCH != 'develop' && BRANCH != 'release') {
+        SCENARIO = 'Scenario 3'
+    }
+
+    // Check for manual trigger
+    for (cause in currentBuild.rawBuild.getCauses()) {
+        if (cause.class.toString().contains('UserIdCause')) {
+            if (params.TAG_ID) {
+                SCENARIO = 'Manual Trigger - Target Tag'
+                TAG_ID = params.TAG_ID
+            } else {
+                SCENARIO = 'Manual Trigger - New Build'
+            }
+            MANUAL_TRIGGER = true
+            break
+        }
+    }
+
+    // Check for scheduled trigger
+    for (cause in currentBuild.rawBuild.getCauses()) {
+        if (cause.class.toString().contains('TimerTriggerCause')) {
+            SCENARIO = 'Scenario 5'
+            SCHEDULED_TRIGGER = true
+            break
+        }
+    }
+
+    // Print the scenario and trigger information
+    echo "SCENARIO: ${SCENARIO}"
+    echo "MANUAL_TRIGGER: ${MANUAL_TRIGGER}"
+    echo "TAG_ID: ${TAG_ID}"
+    echo "SCHEDULED_TRIGGER: ${SCHEDULED_TRIGGER}"
+
+    // Add your pipeline stages and steps here...
+}
