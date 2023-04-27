@@ -1,5 +1,4 @@
-node {
-    // Define variables
+// Define variables
     def SCENARIO = ''
     def BRANCH = env.BRANCH_NAME
     def MANUAL_TRIGGER = false
@@ -22,26 +21,18 @@ node {
     }
 
     // Check for manual trigger
-    for (cause in currentBuild.rawBuild.getCauses()) {
-        if (cause.class.toString().contains('UserIdCause')) {
-            if (params.TAG_ID) {
-                SCENARIO = 'Manual Trigger - Target Tag'
-                TAG_ID = params.TAG_ID
-            } else {
-                SCENARIO = 'Manual Trigger - New Build'
-            }
-            MANUAL_TRIGGER = true
-            break
-        }
-    }
-
-    // Check for scheduled trigger
-    for (cause in currentBuild.rawBuild.getCauses()) {
-        if (cause.class.toString().contains('TimerTriggerCause')) {
-            SCENARIO = 'Scenario 5'
-            SCHEDULED_TRIGGER = true
-            break
-        }
+    if (params.TAG_ID) {
+        SCENARIO = 'Manual Trigger - Target Tag'
+        TAG_ID = params.TAG_ID
+        MANUAL_TRIGGER = true
+    } else if (currentBuild.currentResult == 'SUCCESS' && currentBuild.getBuildCauses('hudson.timer.TimerTriggerCause').size() > 0) {
+        SCENARIO = 'Scenario 5'
+        SCHEDULED_TRIGGER = true
+    } else if (env.CHANGE_ID) {
+        SCENARIO = 'Scenario 4'
+    } else if (env.CAUSE_USER_ID) {
+        SCENARIO = 'Manual Trigger - New Build'
+        MANUAL_TRIGGER = true
     }
 
     // Print the scenario and trigger information
@@ -51,4 +42,3 @@ node {
     echo "SCHEDULED_TRIGGER: ${SCHEDULED_TRIGGER}"
 
     // Add your pipeline stages and steps here...
-}
