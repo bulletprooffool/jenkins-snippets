@@ -1,0 +1,44 @@
+pipeline {
+    agent any
+    parameters {
+        choice(
+            choices: ['develop', 'uat', 'staging', 'prod'],
+            description: 'Target environment',
+            name: 'TARGETENV'
+        )
+        gitParameter(
+            branchFilter: 'origin/release/*',
+            defaultValue: '',
+            description: 'Release version',
+            name: 'VERSION',
+            selectedValue: '',
+            sortMode: 'DESCENDING',
+            tagFilter: '*',
+            useRepository: 'https://github.com/<org>/<repo>.git'
+        )
+    }
+    stages {
+        stage('Validate parameters') {
+            steps {
+                script {
+                    def targetEnv = params.TARGETENV
+                    def version = params.VERSION
+                    
+                    if (!['develop', 'uat', 'staging', 'prod'].contains(targetEnv)) {
+                        error "Invalid TARGETENV parameter: ${targetEnv}"
+                    }
+                    
+                    if (targetEnv == 'prod') {
+                        if (version.endsWith('-pre')) {
+                            error "Pre-releases are not allowed for TARGETENV=prod"
+                        }
+                    }
+                    
+                    echo "Validated parameters: TARGETENV=${targetEnv}, VERSION=${version}"
+                }
+            }
+        }
+        
+        // Add your deployment steps here, using the validated parameters
+    }
+}
