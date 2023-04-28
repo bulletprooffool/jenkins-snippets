@@ -1,0 +1,73 @@
+@Library('my-library') _
+
+import groovy.json.JsonSlurper
+
+pipeline {
+    agent any
+    parameters {
+        choice(
+            choices: ['develop', 'uat', 'staging', 'prod'],
+            description: 'Target environment',
+            name: 'TARGETENV'
+        )
+        activeChoiceReactiveParam(
+            choiceType: 'PT_SINGLE_SELECT',
+            description: 'Release version',
+            filterLength: 1,
+            name: 'VERSION',
+            script: """
+                def repoUrl = 'https://api.github.com/repos/<org>/<repo>/releases'
+                def authToken = '<auth-token>' // Replace with your GitHub auth token
+                
+                def targetEnv = '${TARGETENV}'
+                def preReleaseAllowed = targetEnv != 'prod'
+                
+                def response = httpRequest(
+                    url: repoUrl,
+                    contentType: 'APPLICATION_JSON',
+                    httpMode: 'GET',
+                    authentication: authToken
+                        ? 'Bearer'
+                        : '',
+                    customHeaders: [
+                        name: 'Authorization',
+                        value: "Bearer ${authToken}"
+                    ]
+                )
+                
+                def json = new JsonSlurper().parseText(response.getContent())
+                def versions = json.findAll {
+                    it.prerelease == preReleaseAllowed && it.tag_name != null
+                }.collect {
+                    it.tag_name
+                }
+                
+                return versions.sort { a, b -> -a.compareTo(b) }
+            """
+        )
+    }
+    stages {
+        stage('Validate parameters') {
+            steps {
+                script {
+                    def targetEnv = params.TARGETENV
+                    def version = params.VERSION
+                    
+                    if (!['develop', 'uat', 'staging', 'prod'].contains(targetEnv)) {
+                        error "Invalid TARGETENV parameter: ${targetEnv}"
+                    }
+                    
+                    if (targetEnv == 'prod') {
+                        if (version.endsWith('-pre')) {
+                            error "Pre-releases are not allowed for TARGETENV=prod"
+                        }
+                    }
+                    
+                    echo "Validated parameters: TARGETENV=${targetEnv}, VERSION=${version}"
+                }
+            }
+        }
+        
+        // Add your deployment steps here, using the validated parameters
+    }
+}
