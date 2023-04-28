@@ -17,32 +17,32 @@ pipeline {
             name: 'VERSION',
             script: """
                 def repoUrl = 'https://api.github.com/repos/<org>/<repo>/releases'
-                def authToken = '<auth-token>' // Replace with your GitHub auth token
-                
                 def targetEnv = '${TARGETENV}'
                 def preReleaseAllowed = targetEnv != 'prod'
                 
-                def response = httpRequest(
-                    url: repoUrl,
-                    contentType: 'APPLICATION_JSON',
-                    httpMode: 'GET',
-                    authentication: authToken
-                        ? 'Bearer'
-                        : '',
-                    customHeaders: [
-                        name: 'Authorization',
-                        value: "Bearer ${authToken}"
-                    ]
-                )
-                
-                def json = new JsonSlurper().parseText(response.getContent())
-                def versions = json.findAll {
-                    it.prerelease == preReleaseAllowed && it.tag_name != null
-                }.collect {
-                    it.tag_name
+                withEnv(['GITHUB_TOKEN=your_token_here']) {
+                    try {
+                        def response = httpRequest(
+                            url: repoUrl,
+                            contentType: 'APPLICATION_JSON',
+                            httpMode: 'GET',
+                            headers: [
+                                Authorization: "Bearer ${env.GITHUB_TOKEN}"
+                            ]
+                        )
+                        
+                        def json = new JsonSlurper().parseText(response.getContent())
+                        def versions = json.findAll {
+                            it.prerelease == preReleaseAllowed && it.tag_name != null
+                        }.collect {
+                            it.tag_name
+                        }
+                        
+                        return versions.sort { a, b -> -a.compareTo(b) }
+                    } catch (Exception ex) {
+                        return [ex.getMessage()]
+                    }
                 }
-                
-                return versions.sort { a, b -> -a.compareTo(b) }
             """
         )
     }
@@ -56,18 +56,22 @@ pipeline {
                     if (!['develop', 'uat', 'staging', 'prod'].contains(targetEnv)) {
                         error "Invalid TARGETENV parameter: ${targetEnv}"
                     }
-                    
-                    if (targetEnv == 'prod') {
-                        if (version.endsWith('-pre')) {
-                            error "Pre-releases are not allowed for TARGETENV=prod"
-                        }
+                    if (!version) {
+                        error "Missing VERSION parameter"
                     }
-                    
-                    echo "Validated parameters: TARGETENV=${targetEnv}, VERSION=${version}"
+                    if (version instanceof List && version.size() == 1 && version[0].startsWith('Error')) {
+                        error version[0]
+                    }
                 }
             }
         }
-        
-        // Add your deployment steps here, using the validated parameters
+        stage('Build and deploy') {
+            when {
+                expression { params.TARGETENV != 'develop' }
+            }
+            steps {
+                // Build and deploy logic
+            }
+        }
     }
 }
