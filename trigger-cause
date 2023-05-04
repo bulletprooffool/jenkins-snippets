@@ -1,0 +1,58 @@
+def getTriggerInfo(Map env) {
+  def event = env.GITHUB_EVENT_NAME
+  if (event == null) {
+    // Pipeline was not triggered by a GitHub event
+    def cause = env.BUILD_CAUSE
+    if (cause != null && cause.upcase().contains("MANUAL")) {
+      return "Manually triggered"
+    } else if (cause != null && cause.upcase().contains("REPLAY")) {
+      def replayedCause = env.REPLAY_CAUSE
+      if (replayedCause != null) {
+        return "Replayed from ${replayedCause}"
+      } else {
+        return "Replayed"
+      }
+    } else if (cause != null && cause.upcase().contains("UPSTREAMTRIGGER")) {
+      return "Upstream Jenkins pipeline"
+    } else if (cause != null && cause.upcase().contains("TIMERTRIGGER")) {
+      return "Scheduled/timed Jenkins trigger"
+    } else {
+      return "Unknown trigger"
+    }
+  }
+  
+  switch (event) {
+    case "push":
+      return "Push event"
+    case "pull_request":
+      def action = env.GITHUB_EVENT_ACTION
+      if (action == null) {
+        echo "Unable to determine GitHub pull request action."
+        return null
+      }
+      
+      switch (action) {
+        case "opened":
+          return "Pull request opened"
+        case "reopened":
+          return "Pull request reopened"
+        case "closed":
+          return "Pull request closed"
+        case "synchronize":
+          return "Pull request synchronized"
+        default:
+          echo "Unknown GitHub pull request action: ${action}"
+          return null
+      }
+    case "deployment":
+      return "Deployment event"
+    default:
+      echo "Unknown GitHub event type: ${event}"
+      return null
+  }
+}
+
+def triggerInfo = getTriggerInfo(env)
+if (triggerInfo != null) {
+  echo "Triggered by: ${triggerInfo}"
+}
