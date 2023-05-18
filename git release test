@@ -1,0 +1,25 @@
+import groovy.json.JsonSlurper
+
+def getGitHubReleaseInfo(tagId) {
+    def apiUrl = "https://api.github.com/repos/<owner>/<repository>/releases/tags/${tagId}"
+    def auth = "Bearer ${env.GITHUB_TOKEN}" // Make sure you have a GitHub token stored in the 'GITHUB_TOKEN' environment variable
+
+    def response = sh(
+        returnStdout: true,
+        script: "curl -H 'Authorization: ${auth}' -sSL ${apiUrl}"
+    )
+
+    return new JsonSlurper().parseText(response)
+}
+
+node {
+    stage('Check GitHub Release') {
+        def releaseInfo = getGitHubReleaseInfo(params.TAG_ID)
+        def releaseExists = releaseInfo['message'] != 'Not Found'
+        def preReleaseExists = releaseExists && releaseInfo['prerelease']
+
+        // Print results
+        echo "Release exists: ${releaseExists}"
+        echo "Pre-release exists: ${preReleaseExists}"
+    }
+}
