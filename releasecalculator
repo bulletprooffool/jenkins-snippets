@@ -1,0 +1,41 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Calculate Next Version') {
+            steps {
+                script {
+                    def apiUrl = 'https://api.github.com/repos/OWNER/REPO/releases'
+                    def existingVersions = sh(script: "curl -s -H 'Authorization: token ${env.GITHUB_TOKEN}' ${apiUrl} | jq -r '.[].tag_name'", returnStdout: true).trim().split('\n')
+                    def fullReleaseVersions = existingVersions.findAll { !it.contains('-') } // Find full release versions
+                    def preReleaseVersions = existingVersions.findAll { it.contains('-') } // Find pre-release versions
+
+                    def latestFullRelease = fullReleaseVersions.max { a, b -> a.tokenize('.').collect { it.toInteger() } <=> b.tokenize('.').collect { it.toInteger() } }
+                    def latestPreRelease = preReleaseVersions.max { a, b -> a.tokenize('.').collect { it.toInteger() } <=> b.tokenize('.').collect { it.toInteger() } }
+
+                    if (latestFullRelease) {
+                        echo "Latest full release version: ${latestFullRelease}"
+                        
+                        def versionParts = latestFullRelease.tokenize('.')
+                        def major = versionParts[0].toInteger()
+                        def minor = versionParts[1].toInteger()
+                        def patch = versionParts[2].toInteger()
+
+                        minor++ // Increment the minor version
+
+                        def nextVersion = "${major}.${minor}.${patch}"
+                        echo "Next semantic version: ${nextVersion}"
+                    } else {
+                        error "No existing full release versions found."
+                    }
+
+                    if (latestPreRelease) {
+                        echo "Latest pre-release version: ${latestPreRelease}"
+                    } else {
+                        echo "No existing pre-release versions found."
+                    }
+                }
+            }
+        }
+    }
+}
