@@ -84,4 +84,25 @@ pipeline {
     def getCommitMessages(branch) {
         def lastRelease = getLastRelease()
         def since = lastRelease ? lastRelease.published_at : ''
-        def apiUrl = "https://api.github
+        def apiUrl = "https://api.github.com/repos/<owner>/<repo>/commits?sha=${branch}&since=${since}&per_page=100"
+        def response = sh(script: "curl -s -u ${GITHUB_USERNAME}:${GITHUB_TOKEN} ${apiUrl}", returnStdout: true).trim()
+
+        def commits = new JsonSlurper().parseText(response)
+        def commitMessages = commits.collect { commit ->
+            "Commit: ${commit.sha}\n${commit.commit.message}"
+        }
+        
+        return commitMessages
+    }
+    
+    def getLastRelease() {
+        def apiUrl = "https://api.github.com/repos/<owner>/<repo>/releases/latest"
+        def response = sh(script: "curl -s -u ${GITHUB_USERNAME}:${GITHUB_TOKEN} ${apiUrl}", returnStdout: true).trim()
+        
+        if (response.empty) {
+            return null
+        } else {
+            return JsonOutput.fromJson(response)
+        }
+    }
+}
