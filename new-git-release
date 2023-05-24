@@ -1,0 +1,87 @@
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+
+pipeline {
+    agent any
+    
+    stages {
+        stage('Create Pre-release') {
+            steps {
+                script {
+                    def gitTag = "v1.0.0" // Replace with your desired tag
+                    
+                    // Check if the tag already exists as a pre-release version
+                    def preRelease = getPreRelease(gitTag)
+                    
+                    if (preRelease != null) {
+                        // Tag already exists as a pre-release, re-allocate
+                        deletePreRelease(preRelease)
+                    } else {
+                        // Check if the tag is used by a full release
+                        def fullRelease = getRelease(gitTag)
+                        
+                        if (fullRelease != null) {
+                            error "Tag '${gitTag}' is already used by a full release. Please choose a different tag."
+                        }
+                    }
+                    
+                    // Create pre-release against the latest commit on the release branch
+                    def releaseBranch = "release-1.0" // Replace with your release branch
+                    
+                    checkout([$class: 'GitSCM', branches: [[name: "refs/heads/${releaseBranch}"]], userRemoteConfigs: [[url: 'https://github.com/<owner>/<repo>.git']]])
+                    
+                    // Get the latest commit for each unique DCAUTO identifier since the last release
+                    def commitMessages = getCommitMessages(releaseBranch)
+                    
+                    // Create the pre-release in GitHub
+                    withCredentials([
+                        usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GITHUB_USERNAME', passwordVariable: 'GITHUB_TOKEN')
+                    ]) {
+                        def apiUrl = "https://api.github.com/repos/<owner>/<repo>/releases"
+                        def releaseNotes = commitMessages.join('\n\n')
+                        def requestBody = [
+                            tag_name: "${gitTag}-pre",
+                            target_commitish: releaseBranch,
+                            name: "${gitTag} Pre-release",
+                            body: releaseNotes,
+                            prerelease: true
+                        ]
+                        
+                        sh "curl -X POST -u ${GITHUB_USERNAME}:${GITHUB_TOKEN} -H 'Content-Type: application/json' -d '${JsonOutput.toJson(requestBody)}' ${apiUrl}"
+                    }
+                }
+            }
+        }
+    }
+    
+    def getPreRelease(tag) {
+        def apiUrl = "https://api.github.com/repos/<owner>/<repo>/releases/tags/${tag}-pre"
+        def response = sh(script: "curl -s -u ${GITHUB_USERNAME}:${GITHUB_TOKEN} ${apiUrl}", returnStdout: true).trim()
+        
+        if (response.empty) {
+            return null
+        } else {
+            return JsonOutput.fromJson(response)
+        }
+    }
+    
+    def deletePreRelease(preRelease) {
+        def apiUrl = "https://api.github.com/repos/<owner>/<repo>/releases/${preRelease.id}"
+        sh "curl -X DELETE -u ${GITHUB_USERNAME}:${GITHUB_TOKEN} ${apiUrl}"
+    }
+    
+    def getRelease(tag) {
+        def apiUrl = "https://api.github.com/repos/<owner>/<repo>/releases/tags/${tag}"
+        def response = sh(script: "curl -s -u ${GITHUB_USERNAME}:${GITHUB_TOKEN} ${apiUrl}", returnStdout: true).trim()
+        
+        if (response.empty) {
+            return null
+        } else {
+            return JsonOutput.fromJson(response)
+        }
+    }
+    
+    def getCommitMessages(branch) {
+        def lastRelease = getLastRelease()
+        def since = lastRelease ? lastRelease.published_at : ''
+        def apiUrl = "https://api.github
