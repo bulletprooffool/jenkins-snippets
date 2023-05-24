@@ -30,7 +30,7 @@ pipeline {
                     
                     checkout([$class: 'GitSCM', branches: [[name: "refs/heads/${releaseBranch}"]], userRemoteConfigs: [[url: 'https://github.com/<owner>/<repo>.git']]])
                     
-                    // Get the latest commit for each unique DCAUTO identifier since the last release
+                    // Get the latest commit for each unique JIRA identifier since the last release
                     def commitMessages = getCommitMessages(releaseBranch)
                     
                     // Create the pre-release in GitHub
