@@ -1,0 +1,13 @@
+@Library('libraryfoo') _
+
+pipeline {
+    agent any
+    
+    stages {
+        stage('Execute Pipeline') {
+            steps {
+                libraryfoo.pipeline()
+            }
+        }
+    }
+}
