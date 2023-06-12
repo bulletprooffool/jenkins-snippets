@@ -1,0 +1,25 @@
+node {
+    stage('Run Bash Script') {
+        // Define the Jenkins credential IDs
+        def usernameCredentialId = 'your-username-credential-id'
+        def passwordCredentialId = 'your-password-credential-id'
+
+        // Define other parameters
+        def environment = 'production'
+        def version = '1.0'
+
+        // Load the bash script from the Jenkins config file
+        def bashScript = libraryResource 'path/to/your/script.sh'
+
+        // Retrieve the username and password from Jenkins credentials
+        def username = withCredentials([username(usernameVariable: 'USERNAME', credentialId: usernameCredentialId)]) {
+            return USERNAME
+        }
+        def password = withCredentials([password(passwordVariable: 'PASSWORD', credentialId: passwordCredentialId)]) {
+            return PASSWORD
+        }
+
+        // Run the bash script with the provided credentials and parameters
+        sh "echo '''${bashScript.replaceAll('\n', '\\n')}''' | bash -s '$username' '$password' '$environment' '$version'"
+    }
+}
