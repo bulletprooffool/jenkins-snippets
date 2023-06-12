@@ -1,102 +1,125 @@
-import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
+import jenkins.model.Jenkins
+import hudson.util.Secret
 
 def confluenceUrl = "https://your-confluence-url"
-def confluenceUsername = "your-username"
-def confluencePassword = "your-password"
-def spaceKey = "SPACEKEY"
-def pageTitle = "Page Title"
-def tableId = "tableId"
+def confluencePageId = "your-confluence-page-id"
+def confluenceUsername = "your-confluence-username"
+def confluencePassword = "your-confluence-password-credential-id"
+def environment = "your-environment-name"
+def currentVersion = "your-current-version"
+def deploymentDate = "your-deployment-date"
 
-def environment = "Environment Name"
-def version = "New Version"
-def currentDate = new Date().format("yyyy-MM-dd")
+def credentials = Jenkins.instance.getDescriptor('hudson.model.User').getCredentials()
+def confluencePasswordCredential = credentials.find { it.id == confluencePassword }
 
-// Get page content
-def pageContent = getPageContent()
-def updatedPageContent = updateTable(pageContent)
-
-// Update page with new content
-updatePageContent(updatedPageContent)
-
-// Get page content from Confluence
-def getPageContent() {
-    def apiUrl = "${confluenceUrl}/rest/api/content?spaceKey=${spaceKey}&title=${URLEncoder.encode(pageTitle, "UTF-8")}"
-    
-    // Use 'withCredentials' to securely retrieve credentials from Jenkins credentials store
-    def response = withCredentials([usernamePassword(credentialsId: 'confluence-credentials', passwordVariable: 'confluencePassword', usernameVariable: 'confluenceUsername')]) {
-        sh "curl -s -u ${confluenceUsername}:${confluencePassword} ${apiUrl}"
-    }
-    
-    def json = readJSON(text: response)
-
-    return json.results[0].body.view.value
+if (!confluencePasswordCredential) {
+    error "Confluence password credential not found!"
 }
 
-// Update the table with new version information
-def updateTable(pageContent) {
-    def tableStartTag = "<ac:structured-macro ac:name=\"table\">"
-    def tableEndTag = "</ac:structured-macro>"
+def password = Secret.toString(confluencePasswordCredential.password)
 
-    def startIndex = pageContent.indexOf(tableStartTag) + tableStartTag.length()
-    def endIndex = pageContent.indexOf(tableEndTag)
+def getConfluencePageContent() {
+    def url = "${confluenceUrl}/rest/api/content/${confluencePageId}?expand=body.storage"
+    def response = httpRequest(url: url, authentication: "${confluenceUsername}:${password}")
 
-    def tableContent = pageContent.substring(startIndex, endIndex)
-    def updatedTableContent = updateTableContent(tableContent)
-
-    return pageContent.substring(0, startIndex) + updatedTableContent + pageContent.substring(endIndex)
-}
-
-// Update the content of the table with new version information
-def updateTableContent(tableContent) {
-    def tableJson = readJSON(text: tableContent)
-
-    // Check if the environment already exists in the table
-    def existingRow = tableJson.table.body.row.find { row ->
-        row.cell[0].content == environment
+    if (response.status != 200) {
+        error "Failed to retrieve Confluence page content: ${response.status} ${response.statusLine}"
     }
 
-    if (existingRow) {
-        // Update the existing row with new version information
-        existingRow.cell[1].content = version
-        existingRow.cell[2].content = currentDate
+    return new JsonSlurper().parseText(response.content).body.storage.value
+}
 
-        // Append version history
-        def versionHistory = "${version} - ${currentDate}"
-        existingRow.cell[3].content += "\n${versionHistory}"
-    } else {
-        // Create a new row for the environment
-        def newRow = [
-            [
-                "type": "td",
-                "content": environment
-            ],
-            [
-                "type": "td",
-                "content": version
-            ],
-            [
-                "type": "td",
-                "content": currentDate
-            ],
-            [
-                "type": "td",
-                "content": ""
+def updateConfluencePageContent(content) {
+    def url = "${confluenceUrl}/rest/api/content/${confluencePageId}"
+    def requestBody = JsonOutput.toJson([
+        version: [
+            number: content.version.number + 1
+        ],
+        title: content.title,
+        type: content.type,
+        body: [
+            storage: [
+                value: content.body.storage.value,
+                representation: content.body.storage.representation
             ]
         ]
+    ])
 
-        tableJson.table.body.row.add(1, newRow)
-    }
+    def response = httpRequest(
+        url: url,
+        authentication: "${confluenceUsername}:${password}",
+        contentType: 'application/json',
+        requestBody: requestBody,
+        httpMode: 'PUT'
+    )
 
-    return groovy.json.JsonOutput.toJson(tableJson)
-}
-
-// Update the page with the modified content
-def updatePageContent(updatedContent) {
-    def apiUrl = "${confluenceUrl}/rest/api/content/${tableId}"
-    
-    // Use 'withCredentials' to securely retrieve credentials from Jenkins credentials store
-    withCredentials([usernamePassword(credentialsId: 'confluence-credentials', passwordVariable: 'confluencePassword', usernameVariable: 'confluenceUsername')]) {
-        sh "curl -s -u ${confluenceUsername}:${confluencePassword} -X PUT -H 'Content-Type: application/json' --data '${updatedContent}' ${apiUrl}"
+    if (response.status != 200) {
+        error "Failed to update Confluence page content: ${response.status} ${response.statusLine}"
     }
 }
+
+def findTable(content) {
+    def startTag = "<table>"
+    def endTag = "</table>"
+    def startIndex = content.indexOf(startTag)
+    def endIndex = content.indexOf(endTag, startIndex)
+    if (startIndex != -1 && endIndex != -1) {
+        return content.substring(startIndex, endIndex + endTag.length())
+    } else {
+        return null
+    }
+}
+
+def addEnvironmentToTable(table, environment, currentVersion, deploymentDate) {
+    def row = [
+        cells: [
+            [
+                type: "th",
+                value: environment
+            ],
+            [
+                type: "td",
+                value: currentVersion
+            ],
+            [
+                type: "td",
+                value: "${currentVersion} (${deploymentDate})"
+            ]
+        ]
+    ]
+
+    table.rows.add(row)
+}
+
+def updateEnvironmentInTable(table, environment, currentVersion, deploymentDate) {
+    def row = table.rows.find { it.cells[0].value == environment }
+
+    if (row) {
+        row.cells[2].value = "${row.cells[2].value}, ${currentVersion} (${deploymentDate})"
+    } else {
+        addEnvironmentToTable(table, environment, currentVersion, deploymentDate)
+    }
+}
+
+def createTableIfNotExists(content, environment, currentVersion, deploymentDate) {
+    def table = findTable(content)
+
+    if (table) {
+        def jsonTable = new JsonSlurper().parseText(table)
+        updateEnvironmentInTable(jsonTable, environment, currentVersion, deploymentDate)
+    } else {
+        table = [
+            rows: []
+        ]
+        addEnvironmentToTable(table, environment, currentVersion, deploymentDate)
+        content = content.replace("</body>", "<table>${JsonOutput.toJson(table)}</table></body>")
+    }
+
+    return content
+}
+
+def content = getConfluencePageContent()
+content = createTableIfNotExists(content, environment, currentVersion, deploymentDate)
+updateConfluencePageContent(content)
