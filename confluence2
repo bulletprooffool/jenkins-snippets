@@ -1,0 +1,52 @@
+def fileToUpload = "<path_to_html_file>"
+def confluenceUrl = "<confluence_url>"
+def confluenceUsername = "<confluence_username>"
+def confluenceCredentialsId = "<confluence_credentials_id>"
+def parentPageId = "<parent_page_id>"
+def childPageTitle = "<child_page_title>"
+
+def credentials = com.cloudbees.plugins.credentials.CredentialsProvider.lookupCredentials(
+    com.cloudbees.plugins.credentials.common.UsernamePasswordCredentials.class,
+    Jenkins.instance
+)
+
+def confluenceCredentials = credentials.find { it.id == confluenceCredentialsId }
+
+if (confluenceCredentials == null) {
+    throw new IllegalArgumentException("Confluence credentials with ID '${confluenceCredentialsId}' not found.")
+}
+
+def username = confluenceCredentials.username
+def password = confluenceCredentials.password.getPlainText()
+
+def existingChildPageId = null
+def existingChildPageVersion = 0
+
+// Check if a child page with the same title already exists
+def existingChildPageUrl = "${confluenceUrl}/rest/api/content/${parentPageId}/child/page?title=${childPageTitle}"
+def existingChildPageCmd = "curl -u ${username}:${password} ${existingChildPageUrl}"
+def existingChildPageProcess = existingChildPageCmd.execute()
+existingChildPageProcess.waitFor()
+
+if (existingChildPageProcess.exitValue() == 0) {
+    def existingChildPageJson = new groovy.json.JsonSlurper().parseText(existingChildPageProcess.in.text)
+    if (existingChildPageJson.size() > 0) {
+        existingChildPageId = existingChildPageJson.results[0].id
+        existingChildPageVersion = existingChildPageJson.results[0].version.number
+    }
+}
+
+def uploadUrl = existingChildPageId ? "${confluenceUrl}/rest/api/content/${existingChildPageId}" : "${confluenceUrl}/rest/api/content/${parentPageId}/child/page"
+def uploadMethod = existingChildPageId ? "PUT" : "POST"
+
+def fileContent = new File(fileToUpload).text
+
+def uploadCmd = "curl -u ${username}:${password} -X ${uploadMethod} -H 'Content-Type: application/json' -d '{\"version\":{\"number\":${existingChildPageVersion + 1}},\"title\":\"${childPageTitle}\",\"type\":\"page\",\"body\":{\"storage\":{\"value\":\"<ac:structured-macro ac:name=\\\"html\\\"><ac:plain-text-body><![CDATA[${fileContent}]]></ac:plain-text-body></ac:structured-macro>\",\"representation\":\"storage\"}}}' ${uploadUrl}"
+def uploadProcess = uploadCmd.execute()
+uploadProcess.waitFor()
+
+if (uploadProcess.exitValue() == 0) {
+    println "HTML file uploaded successfully!"
+} else {
+    println "Failed to upload HTML file. Error: ${uploadProcess.err.text}"
+}
