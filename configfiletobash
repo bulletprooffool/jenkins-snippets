@@ -31,12 +31,27 @@ if (existingChildPageJson) {
 
 def fileContent = readFile(fileToUpload).trim()
 
-def formattedContent = sh(script: "echo '${fileContent.replaceAll("'", "\\'")}' | jq -Rs .", returnStdout: true).trim()
+// Additional properties to append
+def additionalProperties = """
+{
+  "version": {
+    "number": ${existingChildPageVersion + 1}
+  },
+  "title": "${childPageTitle}",
+  "type": "page",
+  "body": {
+    "storage": {
+      "value": "<ac:structured-macro ac:name=\\\"html\\\"><ac:plain-text-body><![CDATA[${fileContent}]]></ac:plain-text-body></ac:structured-macro>",
+      "representation": "storage"
+    }
+  }
+}
+"""
 
 def uploadUrl = existingChildPageId ? "${confluenceUrl}/rest/api/content/${existingChildPageId}" : "${confluenceUrl}/rest/api/content/${parentPageId}/child/page"
 def uploadMethod = existingChildPageId ? "PUT" : "POST"
 
-def uploadCmd = "curl -u ${username}:${password} -X ${uploadMethod} -H 'Content-Type: application/json' -d '{\"version\":{\"number\":${existingChildPageVersion + 1}},\"title\":\"${childPageTitle}\",\"type\":\"page\",\"body\":{\"storage\":{\"value\":\"<ac:structured-macro ac:name=\\\"html\\\"><ac:plain-text-body><![CDATA[${formattedContent}]]></ac:plain-text-body></ac:structured-macro>\",\"representation\":\"storage\"}}}' ${uploadUrl}"
+def uploadCmd = "curl -u ${username}:${password} -X ${uploadMethod} -H 'Content-Type: application/json' -d '${additionalProperties.replaceAll("'", "\\'")}' --data-binary @${fileToUpload} ${uploadUrl}"
 sh(uploadCmd)
 
 println "HTML file uploaded successfully!"
