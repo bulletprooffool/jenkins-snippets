@@ -1,0 +1,46 @@
+def createConfluencePage(String pageTitle, String pageContent) {
+  def confluenceUrl = 'https://your-confluence-url' // Replace with your Confluence URL
+  def username = 'your-username' // Replace with your Confluence username
+  def password = 'your-password' // Replace with your Confluence password
+  def spaceKey = 'your-space-key' // Replace with the space key where you want to create the page
+
+  // Prepare the request payload
+  def requestPayload = [
+    type: 'page',
+    title: pageTitle,
+    space: [key: spaceKey],
+    body: [
+      storage: [
+        value: pageContent,
+        representation: 'storage'
+      ]
+    ]
+  ]
+
+  // Convert the payload to JSON
+  def payloadJson = new groovy.json.JsonBuilder(requestPayload).toString()
+
+  // Make the HTTP POST request
+  def response = httpRequest(
+    url: "${confluenceUrl}/rest/api/content",
+    httpMode: 'POST',
+    contentType: 'application/json',
+    authentication: "${username}:${password}",
+    requestBody: payloadJson
+  )
+
+  // Check the response status
+  if (response.status == 200) {
+    def jsonResponse = new groovy.json.JsonSlurper().parseText(response.content)
+    def pageId = jsonResponse.id
+    println "Successfully created Confluence page with ID: ${pageId}"
+  } else {
+    println "Failed to create Confluence page. Status code: ${response.status}, Response: ${response.content}"
+  }
+}
+
+// Read content from a file
+def fileContent = new File('path/to/your/file.html').text
+
+// Create the Confluence page
+createConfluencePage('Page Title', fileContent)
