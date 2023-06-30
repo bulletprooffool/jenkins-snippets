@@ -1,25 +1,42 @@
-node {
-    stage('Run Bash Script') {
-        // Define the Jenkins credential IDs
-        def usernameCredentialId = 'your-username-credential-id'
-        def passwordCredentialId = 'your-password-credential-id'
+def fileToUpload = "<path_to_html_file>"
+def confluenceUrl = "<confluence_url>"
+def confluenceCredentialsId = "<confluence_credentials_id>"
+def parentPageId = "<parent_page_id>"
+def childPageTitle = "<child_page_title>"
 
-        // Define other parameters
-        def environment = 'production'
-        def version = '1.0'
+def credentials = credentials(confluenceCredentialsId)
 
-        // Load the bash script from the Jenkins config file
-        def bashScript = libraryResource 'path/to/your/script.sh'
+if (credentials == null) {
+    throw new IllegalArgumentException("Confluence credentials with ID '${confluenceCredentialsId}' not found.")
+}
 
-        // Retrieve the username and password from Jenkins credentials
-        def username = withCredentials([username(usernameVariable: 'USERNAME', credentialId: usernameCredentialId)]) {
-            return USERNAME
-        }
-        def password = withCredentials([password(passwordVariable: 'PASSWORD', credentialId: passwordCredentialId)]) {
-            return PASSWORD
-        }
+def username = credentials.username
+def password = credentials.password
 
-        // Run the bash script with the provided credentials and parameters
-        sh "echo '''${bashScript.replaceAll('\n', '\\n')}''' | bash -s '$username' '$password' '$environment' '$version'"
+def existingChildPageId = null
+def existingChildPageVersion = 0
+
+// Check if a child page with the same title already exists
+def existingChildPageUrl = "${confluenceUrl}/rest/api/content/${parentPageId}/child/page?title=${URLEncoder.encode(childPageTitle, "UTF-8")}"
+def existingChildPageCmd = "curl -u ${username}:${password} ${existingChildPageUrl}"
+def existingChildPageJson = sh(script: existingChildPageCmd, returnStdout: true).trim()
+
+if (existingChildPageJson) {
+    def existingChildPageData = readJSON text: existingChildPageJson
+    if (existingChildPageData.size() > 0) {
+        existingChildPageId = existingChildPageData.results[0].id
+        existingChildPageVersion = existingChildPageData.results[0].version.number
     }
 }
+
+def fileContent = readFile(fileToUpload).trim()
+
+def formattedContent = sh(script: "echo '${fileContent.replaceAll("'", "\\'")}' | jq -Rs .", returnStdout: true).trim()
+
+def uploadUrl = existingChildPageId ? "${confluenceUrl}/rest/api/content/${existingChildPageId}" : "${confluenceUrl}/rest/api/content/${parentPageId}/child/page"
+def uploadMethod = existingChildPageId ? "PUT" : "POST"
+
+def uploadCmd = "curl -u ${username}:${password} -X ${uploadMethod} -H 'Content-Type: application/json' -d '{\"version\":{\"number\":${existingChildPageVersion + 1}},\"title\":\"${childPageTitle}\",\"type\":\"page\",\"body\":{\"storage\":{\"value\":\"<ac:structured-macro ac:name=\\\"html\\\"><ac:plain-text-body><![CDATA[${formattedContent}]]></ac:plain-text-body></ac:structured-macro>\",\"representation\":\"storage\"}}}' ${uploadUrl}"
+sh(uploadCmd)
+
+println "HTML file uploaded successfully!"
