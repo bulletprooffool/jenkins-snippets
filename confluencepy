@@ -1,5 +1,5 @@
+import sys
 import requests
-import base64
 
 
 def create_or_update_confluence_page(url, page_title, space_key, html_file_path, username, password):
@@ -18,7 +18,11 @@ def create_or_update_confluence_page(url, page_title, space_key, html_file_path,
         html_content = file.read()
 
     # Build the HTML macro with the content from the file
-    macro_content = '<ac:structured-macro ac:name="html"><ac:plain-text-body><![CDATA[{}]]></ac:plain-text-body></ac:structured-macro>'.format(html_content)
+    macro_content = (
+        '<ac:structured-macro ac:name="html">'
+        '<ac:plain-text-body><![CDATA[{}]]></ac:plain-text-body>'
+        '</ac:structured-macro>'.format(html_content)
+    )
 
     # Update the page content with the HTML macro
     update_page(url, page_id, macro_content, username, password)
@@ -26,7 +30,7 @@ def create_or_update_confluence_page(url, page_title, space_key, html_file_path,
 
 def get_page_id(url, page_title, space_key, username, password):
     # URL for searching pages
-    search_url = '{}/rest/api/content?spaceKey={}&title={}&expand=version'.format(url, space_key, page_title)
+    search_url = f'{url}/rest/api/content?spaceKey={space_key}&title={page_title}&expand=version'
 
     # Send GET request to search for the page
     response = requests.get(search_url, auth=(username, password))
@@ -44,7 +48,7 @@ def get_page_id(url, page_title, space_key, username, password):
 
 def create_page(url, page_title, space_key, username, password):
     # URL for creating a new page
-    create_url = '{}/rest/api/content'.format(url)
+    create_url = f'{url}/rest/api/content'
 
     # Define the request body for creating a new page
     data = {
@@ -73,7 +77,7 @@ def create_page(url, page_title, space_key, username, password):
 
 def update_page(url, page_id, page_content, username, password):
     # URL for updating a page
-    update_url = '{}/rest/api/content/{}'.format(url, page_id)
+    update_url = f'{url}/rest/api/content/{page_id}'
 
     # Define the request body for updating the page content
     data = {
@@ -100,13 +104,13 @@ def update_page(url, page_id, page_content, username, password):
         print('Error updating page.')
 
 
-# Configuration
-confluence_url = 'https://your-confluence-instance.com'
-confluence_username = 'your-username'
-confluence_password = 'your-password'
-page_title = 'My Page'
-space_key = 'SPACEKEY'
-html_file_path = 'path/to/your/file.html'
+# Extract command-line arguments
+confluence_url = sys.argv[1]
+page_title = sys.argv[2]
+space_key = sys.argv[3]
+html_file_path = sys.argv[4]
+username = sys.argv[5]
+password = sys.argv[6]
 
 # Call the function to create or update the Confluence page
-create_or_update_confluence_page(confluence_url, page_title, space_key, html_file_path, confluence_username, confluence_password)
+create_or_update_confluence_page(confluence_url, page_title, space_key, html_file_path, username, password)
