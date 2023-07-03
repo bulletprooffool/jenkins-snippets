@@ -1,6 +1,5 @@
 import sys
 import requests
-import html
 
 
 def create_or_update_confluence_page(url, page_title, space_key, parent_page_title, html_file_path, username, password):
@@ -18,26 +17,31 @@ def create_or_update_confluence_page(url, page_title, space_key, parent_page_tit
     with open(html_file_path, 'r') as file:
         html_content = file.read()
 
-    # Encode the HTML content
-    encoded_html_content = html.escape(html_content)
-
     # Split the HTML content into chunks
-    chunk_size = 1000  # Specify the desired chunk size
-    chunks = [encoded_html_content[i:i + chunk_size] for i in range(0, len(encoded_html_content), chunk_size)]
+    chunks = split_into_chunks(html_content)
 
-    # Iterate over the chunks and send update requests
+    # Update the page with each chunk
     for i, chunk in enumerate(chunks):
-        # Build the HTML macro with the chunk of content
-        macro_content = (
-            '<ac:structured-macro ac:name="html">'
-            '<ac:plain-text-body><![CDATA[{}]]></ac:plain-text-body>'
-            '</ac:structured-macro>'.format(chunk)
-        )
+        chunk_content = create_html_macro(chunk)
+        update_page(url, page_id, page_version, chunk_content, username, password)
+        print('Updated chunk {}/{}'.format(i+1, len(chunks)))
 
-        # Update the page content with the chunk of HTML macro
-        update_page(url, page_id, page_version, macro_content, username, password)
+    print('Page update completed successfully.')
 
-        print('Updated chunk {}/{}'.format(i + 1, len(chunks)))
+
+def split_into_chunks(html_content, chunk_size=100000):
+    # Split the HTML content into chunks of specified size
+    chunks = [html_content[i:i+chunk_size] for i in range(0, len(html_content), chunk_size)]
+    return chunks
+
+
+def create_html_macro(content):
+    # Create an HTML macro with the specified content
+    return (
+        '<ac:structured-macro ac:name="html">'
+        '<ac:plain-text-body><![CDATA[{}]]></ac:plain-text-body>'
+        '</ac:structured-macro>'.format(content)
+    )
 
 
 def get_page_info(url, page_title, space_key, username, password):
@@ -98,16 +102,11 @@ def update_page(url, page_id, page_version, page_content, username, password):
     # URL for updating a page
     update_url = '{}/rest/api/content/{}'.format(url, page_id)
 
-    # Calculate the next version number
-    next_version = page_version + 1
-
-    # Define the request body for updating the page content
+    # Define the request body for updating the page
     data = {
-        "version": {
-            "number": next_version
-        },
-        "title": "Updated Page",
+        "id": page_id,
         "type": "page",
+        "version": {"number": page_version + 1},
         "body": {
             "storage": {
                 "value": page_content,
@@ -116,7 +115,7 @@ def update_page(url, page_id, page_version, page_content, username, password):
         }
     }
 
-    # Send PUT request to update the page content
+    # Send PUT request to update the page
     response = requests.put(update_url, json=data, auth=(username, password))
 
     # Check if the response was successful
@@ -127,15 +126,19 @@ def update_page(url, page_id, page_version, page_content, username, password):
         print(response.text)
 
 
-# Extract command-line arguments
-confluence_url = sys.argv[1]
-page_title = sys.argv[2]
-space_key = sys.argv[3]
-parent_page_title = sys.argv[4]
-html_file_path = sys.argv[5]
-username = sys.argv[6]
-password = sys.argv[7]
+# Main script
 
-# Call the function to create or update the Confluence page
-create_or_update_confluence_page(confluence_url, page_title, space_key, parent_page_title, html_file_path, username,
-                                 password)
+if __name__ == '__main__':
+    if len(sys.argv) != 8:
+        print('Usage: python script.py <url> <page_title> <space_key> <parent_page_title> <html_file_path> <username> <password>')
+        sys.exit(1)
+
+    url = sys.argv[1]
+    page_title = sys.argv[2]
+    space_key = sys.argv[3]
+    parent_page_title = sys.argv[4]
+    html_file_path = sys.argv[5]
+    username = sys.argv[6]
+    password = sys.argv[7]
+
+    create_or_update_confluence_page(url, page_title, space_key, parent_page_title, html_file_path, username, password)
