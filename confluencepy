@@ -81,6 +81,11 @@ def create_page(url, page_title, space_key, parent_page_title, username, passwor
 
 
 def update_page(url, page_id, page_version, page_content, username, password):
+    if page_version is None:
+        page_version = 0
+    else:
+        page_version += 1
+
     # URL for updating a page
     update_url = '{}/rest/api/content/{}'.format(url, page_id)
 
@@ -88,7 +93,7 @@ def update_page(url, page_id, page_version, page_content, username, password):
     data = {
         "id": page_id,
         "type": "page",
-        "version": {"number": page_version + 1},
+        "version": {"number": page_version},
         "body": {
             "storage": {
                 "value": page_content,
