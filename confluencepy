@@ -1,86 +1,66 @@
-import sys
 import requests
+import sys
 
-# Confluence configuration
-USERNAME = "YOUR_USERNAME"
-PASSWORD = "YOUR_PASSWORD"
 
-# File configuration
-ATTACHMENT_NAME = "file.html"
+def create_attachment(confluence_url, page_title, space_key, parent_page_title, html_file_path, username, password):
+    # Get the page ID of the parent page
+    parent_page_id = get_page_id(confluence_url, parent_page_title, space_key, username, password)
+    if not parent_page_id:
+        print("Parent page '{}' not found in space '{}'.".format(parent_page_title, space_key))
+        return
+    
+    # Create the URL for uploading attachments
+    upload_url = "{}/rest/api/content/{}/child/attachment".format(confluence_url, parent_page_id)
 
-def upload_attachment(confluence_url, page_title, space_key, parent_page_title, html_file_path):
-    auth = (USERNAME, PASSWORD)
-    url = confluence_url + "/rest/api/content/" + PAGE_ID + "/child/attachment"
-    headers = {"X-Atlassian-Token": "no-check"}
-    files = {"file": (ATTACHMENT_NAME, open(html_file_path, "rb"))}
+    # Read the HTML file content
+    with open(html_file_path, 'r') as file:
+        html_content = file.read()
 
-    response = requests.post(url, auth=auth, files=files, headers=headers)
-    if response.status_code == 200:
-        attachment_id = response.json()["results"][0]["id"]
-        print("Attachment uploaded successfully!")
-        return attachment_id
-    else:
-        print("Failed to upload attachment. Error:", response.text)
-        return None
-
-def create_or_update_page(confluence_url, page_title, space_key, parent_page_title, attachment_id):
-    auth = (USERNAME, PASSWORD)
-    url = confluence_url + "/rest/api/content"
-    headers = {"Content-Type": "application/json"}
-
-    # Check if the page already exists
-    params = {
-        "spaceKey": space_key,
-        "title": page_title,
-        "expand": "version",
+    # Prepare the attachment data
+    attachment_data = {
+        'file': open(html_file_path, 'rb'),
+        'comment': 'HTML Attachment',
+        'minorEdit': True
     }
-    response = requests.get(url, auth=auth, headers=headers, params=params)
+
+    # Upload the attachment
+    response = requests.post(upload_url, auth=(username, password), files=attachment_data)
+
     if response.status_code == 200:
-        results = response.json()["results"]
-        if results:
-            page_id = results[0]["id"]
-            version = results[0]["version"]["number"] + 1
-
-            # Update existing page
-            data = {
-                "id": page_id,
-                "type": "page",
-                "title": page_title,
-                "version": {"number": version},
-                "body": {
-                    "storage": {
-                        "value": f"<ac:structured-macro ac:name=\"html\"><ac:plain-text-body><![CDATA[[{attachment_id}^{ATTACHMENT_NAME}]]]></ac:plain-text-body></ac:structured-macro>",
-                        "representation": "storage"
-                    }
-                },
-            }
-            response = requests.put(url + "/" + page_id, auth=auth, json=data, headers=headers)
-            if response.status_code == 200:
-                print("Page updated successfully!")
-            else:
-                print("Failed to update page. Error:", response.text)
-        else:
-            # Create new page
-            data = {
-                "type": "page",
-                "title": page_title,
-                "ancestors": [{"type": "page", "title": parent_page_title}],
-                "space": {"key": space_key},
-                "body": {
-                    "storage": {
-                        "value": f"<ac:structured-macro ac:name=\"html\"><ac:plain-text-body><![CDATA[[{attachment_id}^{ATTACHMENT_NAME}]]]></ac:plain-text-body></ac:structured-macro>",
-                        "representation": "storage"
-                    }
-                },
-            }
-            response = requests.post(url, auth=auth, json=data, headers=headers)
-            if response.status_code == 200:
-                print("Page created successfully!")
-            else:
-                print("Failed to create page. Error:", response.text)
+        attachment_id = response.json()['results'][0]['id']
+        attachment_link = "{}/download/attachments/{}/{}/{}.html".format(confluence_url, parent_page_id, attachment_id, page_title)
+        print("Attachment uploaded successfully. Link: {}".format(attachment_link))
     else:
-        print("Failed to check page existence. Error:", response.text)
+        print("Error uploading attachment: {}".format(response.status_code))
 
-if __name__ == "__main__":
+
+def get_page_id(confluence_url, page_title, space_key, username, password):
+    # Create the URL for searching pages
+    search_url = "{}/rest/api/content?spaceKey={}&title={}&expand=version".format(confluence_url, space_key, page_title)
+
+    # Search for the page
+    response = requests.get(search_url, auth=(username, password))
+
+    if response.status_code == 200:
+        results = response.json()['results']
+        if results:
+            return results[0]['id']
+    else:
+        print("Error searching for page: {}".format(response.status_code))
+
+    return None
+
+
+if __name__ == '__main__':
     if len(sys.argv) != 8:
-        print
+        print("Usage: python script_name.py confluence_url page_title space_key parent_page_title html_file_path username password")
+    else:
+        confluence_url = sys.argv[1]
+        page_title = sys.argv[2]
+        space_key = sys.argv[3]
+        parent_page_title = sys.argv[4]
+        html_file_path = sys.argv[5]
+        username = sys.argv[6]
+        password = sys.argv[7]
+
+        create_attachment(confluence_url, page_title, space_key, parent_page_title, html_file_path, username, password)
