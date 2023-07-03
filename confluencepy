@@ -1,5 +1,6 @@
 import sys
 import requests
+import html
 
 
 def create_or_update_confluence_page(url, page_title, space_key, parent_page_title, html_file_path, username, password):
@@ -17,15 +18,26 @@ def create_or_update_confluence_page(url, page_title, space_key, parent_page_tit
     with open(html_file_path, 'r') as file:
         html_content = file.read()
 
-    # Build the HTML macro with the content from the file
-    macro_content = (
-        '<ac:structured-macro ac:name="html">'
-        '<ac:plain-text-body><![CDATA[{}]]></ac:plain-text-body>'
-        '</ac:structured-macro>'.format(html_content)
-    )
+    # Encode the HTML content
+    encoded_html_content = html.escape(html_content)
 
-    # Update the page content with the HTML macro
-    update_page(url, page_id, page_version, macro_content, username, password)
+    # Split the HTML content into chunks
+    chunk_size = 1000  # Specify the desired chunk size
+    chunks = [encoded_html_content[i:i + chunk_size] for i in range(0, len(encoded_html_content), chunk_size)]
+
+    # Iterate over the chunks and send update requests
+    for i, chunk in enumerate(chunks):
+        # Build the HTML macro with the chunk of content
+        macro_content = (
+            '<ac:structured-macro ac:name="html">'
+            '<ac:plain-text-body><![CDATA[{}]]></ac:plain-text-body>'
+            '</ac:structured-macro>'.format(chunk)
+        )
+
+        # Update the page content with the chunk of HTML macro
+        update_page(url, page_id, page_version, macro_content, username, password)
+
+        print('Updated chunk {}/{}'.format(i + 1, len(chunks)))
 
 
 def get_page_info(url, page_title, space_key, username, password):
@@ -125,4 +137,5 @@ username = sys.argv[6]
 password = sys.argv[7]
 
 # Call the function to create or update the Confluence page
-create_or_update_confluence_page(confluence_url, page_title, space_key, parent_page_title, html_file_path, username, password)
+create_or_update_confluence_page(confluence_url, page_title, space_key, parent_page_title, html_file_path, username,
+                                 password)
