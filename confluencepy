@@ -49,7 +49,7 @@ def create_or_update_page(confluence_url, page_title, space_key, parent_page_tit
                 "version": {"number": version},
                 "body": {
                     "storage": {
-                        "value": "<ac:structured-macro ac:name=\"html\"><ac:plain-text-body><![CDATA[[{attachment_id}^file.html]]]></ac:plain-text-body></ac:structured-macro>",
+                        "value": f"<ac:structured-macro ac:name=\"html\"><ac:plain-text-body><![CDATA[[{attachment_id}^{ATTACHMENT_NAME}]]]></ac:plain-text-body></ac:structured-macro>",
                         "representation": "storage"
                     }
                 },
@@ -68,7 +68,7 @@ def create_or_update_page(confluence_url, page_title, space_key, parent_page_tit
                 "space": {"key": space_key},
                 "body": {
                     "storage": {
-                        "value": "<ac:structured-macro ac:name=\"html\"><ac:plain-text-body><![CDATA[[{attachment_id}^file.html]]]></ac:plain-text-body></ac:structured-macro>",
+                        "value": f"<ac:structured-macro ac:name=\"html\"><ac:plain-text-body><![CDATA[[{attachment_id}^{ATTACHMENT_NAME}]]]></ac:plain-text-body></ac:structured-macro>",
                         "representation": "storage"
                     }
                 },
@@ -83,17 +83,4 @@ def create_or_update_page(confluence_url, page_title, space_key, parent_page_tit
 
 if __name__ == "__main__":
     if len(sys.argv) != 8:
-        print("Invalid number of arguments. Please provide confluence_url, page_title, space_key, parent_page_title, html_file_path, username, and password.")
-        sys.exit(1)
-
-    confluence_url = sys.argv[1]
-    page_title = sys.argv[2]
-    space_key = sys.argv[3]
-    parent_page_title = sys.argv[4]
-    html_file_path = sys.argv[5]
-    USERNAME = sys.argv[6]
-    PASSWORD = sys.argv[7]
-
-    attachment_id = upload_attachment(confluence_url, page_title, space_key, parent_page_title, html_file_path)
-    if attachment_id:
-        create_or_update_page(confluence_url, page_title, space_key, parent_page_title, attachment_id)
+        print
