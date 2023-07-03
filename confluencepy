@@ -1,0 +1,112 @@
+import requests
+import base64
+
+
+def create_or_update_confluence_page(url, page_title, space_key, html_file_path, username, password):
+    # Check if the page already exists
+    existing_page_id = get_page_id(url, page_title, space_key, username, password)
+
+    # If the page doesn't exist, create a new page
+    if not existing_page_id:
+        create_page(url, page_title, space_key, username, password)
+
+    # Get the page ID again after creation or if it already existed
+    page_id = get_page_id(url, page_title, space_key, username, password)
+
+    # Read the content from the local HTML file
+    with open(html_file_path, 'r') as file:
+        html_content = file.read()
+
+    # Build the HTML macro with the content from the file
+    macro_content = '<ac:structured-macro ac:name="html"><ac:plain-text-body><![CDATA[{}]]></ac:plain-text-body></ac:structured-macro>'.format(html_content)
+
+    # Update the page content with the HTML macro
+    update_page(url, page_id, macro_content, username, password)
+
+
+def get_page_id(url, page_title, space_key, username, password):
+    # URL for searching pages
+    search_url = '{}/rest/api/content?spaceKey={}&title={}&expand=version'.format(url, space_key, page_title)
+
+    # Send GET request to search for the page
+    response = requests.get(search_url, auth=(username, password))
+
+    # Check if the response was successful
+    if response.status_code == 200:
+        data = response.json()
+        # Check if any page was found
+        if data['size'] > 0:
+            # Return the first page ID
+            return data['results'][0]['id']
+
+    return None
+
+
+def create_page(url, page_title, space_key, username, password):
+    # URL for creating a new page
+    create_url = '{}/rest/api/content'.format(url)
+
+    # Define the request body for creating a new page
+    data = {
+        "type": "page",
+        "title": page_title,
+        "space": {
+            "key": space_key
+        },
+        "body": {
+            "storage": {
+                "value": "<p>This is a new page.</p>",
+                "representation": "storage"
+            }
+        }
+    }
+
+    # Send POST request to create a new page
+    response = requests.post(create_url, json=data, auth=(username, password))
+
+    # Check if the response was successful
+    if response.status_code == 200:
+        print('Page created successfully.')
+    else:
+        print('Error creating page.')
+
+
+def update_page(url, page_id, page_content, username, password):
+    # URL for updating a page
+    update_url = '{}/rest/api/content/{}'.format(url, page_id)
+
+    # Define the request body for updating the page content
+    data = {
+        "version": {
+            "number": 2
+        },
+        "title": "Updated Page",
+        "type": "page",
+        "body": {
+            "storage": {
+                "value": page_content,
+                "representation": "storage"
+            }
+        }
+    }
+
+    # Send PUT request to update the page content
+    response = requests.put(update_url, json=data, auth=(username, password))
+
+    # Check if the response was successful
+    if response.status_code == 200:
+        print('Page updated successfully.')
+    else:
+        print('Error updating page.')
+
+
+# Configuration
+confluence_url = 'https://your-confluence-instance.com'
+confluence_username = 'your-username'
+confluence_password = 'your-password'
+page_title = 'My Page'
+space_key = 'SPACEKEY'
+html_file_path = 'path/to/your/file.html'
+
+# Call the function to create or update the Confluence page
+create_or_update_confluence_page(confluence_url, page_title, space_key, html_file_path, confluence_username, confluence_password)
