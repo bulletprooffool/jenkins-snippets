@@ -11,18 +11,17 @@ def create_or_update_confluence_page(url, page_title, space_key, parent_page_tit
         create_page(url, page_title, space_key, parent_page_title, username, password)
 
         # Get the page ID and version after creating the page
-        page_id, page_version = get_page_info(url, page_title, space_key, username, password)
-    else:
-        # Page already exists, use the existing ID and version
-        page_id = existing_page_id
-        page_version = existing_page_version or 0
+        existing_page_id, existing_page_version = get_page_info(url, page_title, space_key, username, password)
+
+    # Set the initial page version to 0 if it's None
+    page_version = existing_page_version or 0
 
     # Read the content from the local HTML file
     with open(html_file_path, 'r') as file:
         html_content = file.read()
 
     # Update the page with the HTML content
-    update_page(url, page_id, page_version, html_content, username, password)
+    update_page(url, existing_page_id, page_version, html_content, username, password)
 
     print('Page update completed successfully.')
 
