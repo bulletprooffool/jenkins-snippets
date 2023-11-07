@@ -1,0 +1,44 @@
+import groovy.json.JsonOutput
+
+node {
+    // Get the current workspace directory
+    def workspace = pwd()
+
+    // Define the path to the "templates" folder within the workspace
+    def templatesDir = "${workspace}/templates"
+
+    // Use the 'findFiles' step to list all directories within the "templates" folder
+    def templateDirs = findFiles(glob: "${templatesDir}/*")
+
+    // Initialize a list to store JSON payloads
+    def jsonPayloads = []
+
+    // Iterate through the directories
+    for (templateDir in templateDirs) {
+        if (templateDir.isDirectory()) {
+            def blueprintFile = new File("${templateDir}/blueprints.yaml")
+            if (blueprintFile.exists()) {
+                def name = templateDir.getName()
+                def description = "Your description here"
+                def content = blueprintFile.text.replaceAll(/\n/, '\\n')
+
+                // Create a JSON payload
+                def payload = [:]
+                payload['name'] = name
+                payload['description'] = description
+                payload['content'] = content
+
+                // Add the payload to the list
+                jsonPayloads.add(payload)
+            }
+        }
+    }
+
+    // Convert the list of JSON payloads to a JSON array
+    def jsonArray = JsonOutput.toJson(jsonPayloads)
+
+    // Now, 'jsonArray' contains the JSON payloads for each blueprint
+    echo "JSON Array: ${jsonArray}"
+
+    // You can use 'jsonArray' in your API request
+}
