@@ -1,0 +1,47 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Check and Delete') {
+            steps {
+                script {
+                    // Set the URL of the remote API and the item ID you want to check/delete
+                    def apiUrl = 'https://example.com/api/items'
+                    def itemId = '123'
+
+                    // Perform a GET request to check if the item exists
+                    def response = httpRequest(
+                        acceptType: 'APPLICATION_JSON',
+                        httpMode: 'GET',
+                        responseHandle: 'NONE',
+                        url: "${apiUrl}/${itemId}"
+                    )
+
+                    // Check the HTTP status code
+                    if (response.getResponseCode() == 200) {
+                        // Item exists, perform a DELETE request
+                        def deleteResponse = httpRequest(
+                            acceptType: 'APPLICATION_JSON',
+                            contentType: 'APPLICATION_JSON',
+                            httpMode: 'DELETE',
+                            responseHandle: 'NONE',
+                            url: "${apiUrl}/${itemId}"
+                        )
+
+                        // Check the HTTP status code for the DELETE request
+                        if (deleteResponse.getResponseCode() == 204) {
+                            echo "Item deleted successfully."
+                        } else {
+                            error "Failed to delete item. Status code: ${deleteResponse.getResponseCode()}"
+                        }
+                    } else if (response.getResponseCode() == 404) {
+                        // Item does not exist, continue with the pipeline
+                        echo "Item not found. Continuing..."
+                    } else {
+                        error "Failed to check item existence. Status code: ${response.getResponseCode()}"
+                    }
+                }
+            }
+        }
+    }
+}
