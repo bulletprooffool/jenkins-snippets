@@ -1,0 +1,19 @@
+def jsonString = '{"CI_NAMES": "FOO1, FOOX, BAR3, N, POTATO, ZZ4"}'
+
+// Parse JSON and extract CI_NAMES
+def ciNames = new groovy.json.JsonSlurper().parseText(jsonString).CI_NAMES
+
+// Desired strings to check
+def stringsToCheck = ["FOO1", "ZZ4", "POTATO"]
+
+// Split the comma-separated string into an array
+def ciNamesArray = ciNames.split(',').collect { it.trim() }
+
+// Check if all desired strings are present in the array
+def allPresent = stringsToCheck.every { ciNamesArray.contains(it) }
+
+if (allPresent) {
+    echo "All desired strings are present in the CI_NAMES."
+} else {
+    echo "Not all desired strings are present in the CI_NAMES."
+}
