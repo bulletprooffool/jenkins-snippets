@@ -16,3 +16,26 @@ calendar.set(Calendar.SECOND, 0)
 def dateString = dateFormat.format(calendar.time)
 
 echo "Date and Time of the day after tomorrow at 8 am: ${dateString}"
+
+
+def isTimeWithinRange(startTimeStr, endTimeStr) {
+    // Current time
+    def currentTime = new Date()
+
+    // Parse start and end times
+    def startTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(startTimeStr)
+    def endTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(endTimeStr)
+
+    // Check if the current time is within the specified range
+    return (currentTime.after(startTime) && currentTime.before(endTime))
+}
+
+// Example usage
+def startTimeString = "2023-01-01 08:00:00"
+def endTimeString = "2023-01-01 17:00:00"
+
+if (isTimeWithinRange(startTimeString, endTimeString)) {
+    echo "Current time is within the specified range."
+} else {
+    echo "Current time is outside the specified range."
+}
