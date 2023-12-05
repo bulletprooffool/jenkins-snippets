@@ -1,0 +1,33 @@
+
+// GitHub Release URL
+def githubReleaseUrl = "https://api.github.com/repos/owner/repo/releases/1" // Replace with your actual URL
+
+// Version to compare
+def version = "v1.0.0" // Replace with your actual version
+
+// Function to extract the version from the GitHub Release URL
+def extractVersionFromUrl(url) {
+    def matcher = url =~ /\/releases\/([^\/]+)$/
+    return matcher ? matcher[0][1] : null
+}
+
+// Function to check if the GitHub Release version matches the specified version
+def isGitHubReleaseVersionMatched(url, expectedVersion) {
+    def client = new RESTClient(url)
+    def response = client.get()
+
+    if (response.status == 200) {
+        def releaseVersion = extractVersionFromUrl(response.data.html_url)
+        return releaseVersion == expectedVersion
+    } else {
+        println "Failed to fetch release information. HTTP Status: ${response.status}"
+        return false
+    }
+}
+
+// Verify if the GitHub Release version matches the specified version
+if (isGitHubReleaseVersionMatched(githubReleaseUrl, version)) {
+    println "The GitHub Release version matches the expected version."
+} else {
+    println "The GitHub Release version does not match the expected version."
+}
