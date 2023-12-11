@@ -4,14 +4,15 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
-	"time"
+	"strings"
+
+	"gopkg.in/ldap.v3"
 )
 
 func main() {
 	// Command-line flags
-	uri := flag.String("Uri", "", "The URI to test")
+	uri := flag.String("Uri", "", "The URI to test (e.g., ldaps://example.com:636)")
 	flag.Parse()
 
 	// Check if URI is provided
@@ -20,31 +21,34 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Parse URI to get host and port
+	parts := strings.Split(*uri, "://")
+	if len(parts) != 2 {
+		fmt.Println("Invalid URI format. Please use a valid URI (e.g., ldaps://example.com:636).")
+		os.Exit(1)
+	}
+
+	host := parts[1]
+	if !strings.Contains(host, ":") {
+		fmt.Println("Please specify a port in the URI (e.g., ldaps://example.com:636).")
+		os.Exit(1)
+	}
+
 	// Disable security checks for simplicity. In a production environment, you should handle this more securely.
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-
-	client := &http.Client{
-		Transport: tr,
-		Timeout:   10 * time.Second,
-	}
-
-	// Make a GET request to the specified URI
-	resp, err := client.Get(*uri)
+	ldap.DefaultTimeout = 10 // seconds
+	l, err := ldap.DialTLS("tcp", host, &tls.Config{InsecureSkipVerify: true})
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
+	defer l.Close()
 
-	defer resp.Body.Close()
-
-	// Check if the response status code indicates success (2xx)
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		fmt.Printf("Success! Valid certificate for %s\n", *uri)
-		os.Exit(0)
-	} else {
-		fmt.Printf("Error: Invalid certificate for %s. Status code: %d\n", *uri, resp.StatusCode)
+	// Make a simple bind to check if the connection is successful
+	err = l.Bind("", "")
+	if err != nil {
+		fmt.Printf("Error: Unable to bind. %v\n", err)
 		os.Exit(1)
 	}
+
+	fmt.Printf("Success! Connected to %s\n", *uri)
 }
