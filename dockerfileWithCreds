@@ -1,0 +1,12 @@
+# Use multi-stage builds
+FROM alpine AS downloader
+
+# Use curl to download something using the username and password
+RUN --mount=type=secret,id=secrets \
+    cat /run/secrets/secrets.env | xargs -I {} sh -c 'export {}; curl -u $USERNAME:$PASSWORD https://example.com/somefile -o /tmp/somefile'
+
+# Use a minimal final image
+FROM your_base_image
+
+# Copy the file downloaded in the previous stage
+COPY --from=downloader /tmp/somefile /app/
