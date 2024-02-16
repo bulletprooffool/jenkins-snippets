@@ -1,0 +1,62 @@
+
+Function Decrypt-File {
+  Param(
+    [Parameter(Mandatory=$true)]
+    [string]$InputFile,
+    
+    [Parameter(Mandatory=$true)]
+    [string]$OutputFile,
+
+    [Parameter(Mandatory=$true)]
+    [string]$Password=${ENV:EncryptionKey}
+  )
+
+  openssl aes-256-cbc -d -in $InputFile -out $OutputFile -pass pass:$Password 
+}
+
+function Get-ModifiedFilesInLatestCommit {
+  param (
+      [string]$repoPath = (Get-Location),
+      [string]$branch = "main"
+  )
+
+  # Change to the repository directory
+  Set-Location $repoPath
+
+  #  Pull the latest code
+  git pull
+
+  # Get the latest commit hash
+  $latestCommitHash = git rev-parse $branch
+
+  # Get the list of modified files in the latest commit
+  $modifiedFiles = git diff-tree --no-commit-id --name-only -r $latestCommitHash
+
+  return $modifiedFiles
+}
+
+
+# Define the key to use for encryption
+$key = (Get-Item env:\EncryptionKey).Value
+
+# Example usage
+$modifiedFiles = Get-ModifiedFilesInLatestCommit -repoPath "$pwd" -branch "main"
+Write-Host "Modified files in the latest commit:"
+$modifiedFiles | ForEach-Object { 
+  
+  Write-Host $_
+  
+  # Get filename from API response - strip the first 5 chars
+  $filename = $_.Substring(5)
+
+  # Decrypt to file using actual name
+  $decrypted = Decrypt-File -Password ${ENV:EncryptionKey} -InputFile $_ -OutputFile $filename
+  write-host 
+  #$content | openssl enc -d -aes-256-cbc  -out "./$filename" -pass pass:$key
+  #openssl enc -d -aes-256-cbc -in (get-content .\live\monitor.ps1) -out "./$filename" -pass pass:$key
+  # Write decrypted file   
+  Write-Host "Decrypted file: $dencrypted" 
+
+}
+
+
