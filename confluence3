@@ -1,0 +1,95 @@
+// confluence.groovy
+
+import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
+import groovy.text.SimpleTemplateEngine
+import javax.xml.bind.DatatypeConverter
+import java.net.URL
+import java.net.HttpURLConnection
+
+def requestPAT(username, password) {
+    def url = "https://your-confluence-instance.com/rest/api/access-tokens/impersonation"
+    def body = [
+        "accountId": "userAccountId",
+        "idType": "user"
+    ]
+    def connection = url.toURL().openConnection() as HttpURLConnection
+    connection.setRequestMethod("POST")
+    connection.setRequestProperty("Authorization", "Basic ${encodeCredentials(username, password)}")
+    connection.setRequestProperty("Content-Type", "application/json")
+    connection.setRequestProperty("Accept", "application/json")
+    connection.doOutput = true
+    connection.outputStream.write(JsonOutput.toJson(body).getBytes())
+    def response = connection.inputStream.getText()
+    def json = new JsonSlurper().parseText(response)
+    return json?.token
+}
+
+def encodeCredentials(username, password) {
+    def auth = "${username}:${password}"
+    return DatatypeConverter.printBase64Binary(auth.getBytes())
+}
+
+def authenticateConfluence(username, password) {
+    def pat = requestPAT(username, password)
+    return "Bearer ${pat}"
+}
+
+def downloadConfluencePage(authHeaderValue, confluenceBaseUrl, spaceKey, pageTitle) {
+    def url = "${confluenceBaseUrl}/rest/api/content"
+    def query = [
+        "spaceKey": spaceKey,
+        "title": pageTitle
+    ]
+    def contentId = null
+    
+    def connection = url.toURL().openConnection()
+    connection.setRequestProperty("Authorization", authHeaderValue)
+    connection.setRequestProperty("Accept", "application/json")
+    def response = new JsonSlurper().parseText(connection.getInputStream().getText())
+    
+    if (response.size() > 0) {
+        contentId = response[0].id
+    }
+    
+    if (contentId) {
+        def contentUrl = "${confluenceBaseUrl}/rest/api/content/${contentId}/?expand=body.view"
+        def contentConnection = new URL(contentUrl).openConnection()
+        contentConnection.setRequestProperty("Authorization", authHeaderValue)
+        contentConnection.setRequestProperty("Accept", "application/json")
+        def contentResponse = new JsonSlurper().parseText(contentConnection.getInputStream().getText())
+        
+        return contentResponse.body.view.value
+    } else {
+        return null
+    }
+}
+
+def parseTableContent(tableHtml) {
+    def engine = new SimpleTemplateEngine()
+    def template = engine.createTemplate(tableHtml)
+    def result = template.make().toString()
+    // Add your logic here to parse the HTML table and convert it into an array of objects
+    // For demonstration, let's assume the table content is already in the desired format
+    return [
+        ["Environment": "Prod", "Version": "1.0", "GitUrl": "https://example.com", "Date": "2024-03-21"],
+        ["Environment": "Dev", "Version": "1.1", "GitUrl": "https://example.com/dev", "Date": "2024-03-20"],
+        ["Environment": "Test", "Version": "1.2", "GitUrl": "https://example.com/test", "Date": "2024-03-19"]
+    ]
+}
+
+def findEnvironmentInArray(itemArray, environmentName) {
+    return itemArray.find { it.Environment == environmentName }
+}
+
+def updateEnvironment(itemArray, environmentInfo) {
+    def environment = findEnvironmentInArray(itemArray, environmentInfo.Environment)
+    if (environment) {
+        environment.Version = environmentInfo.Version
+        environment.GitUrl = environmentInfo.GitUrl
+        environment.Date = environmentInfo.Date
+    } else {
+        itemArray.add(environmentInfo)
+    }
+    return itemArray
+}
