@@ -7,6 +7,31 @@ import javax.xml.bind.DatatypeConverter
 import java.net.URL
 import java.net.HttpURLConnection
 
+
+
+def username = "your_confluence_username"
+def password = "your_confluence_password"
+def confluenceBaseUrl = "https://your-confluence-instance.com"
+def spaceKey = "your-space-key"
+def pageTitle = "your-page-title"
+def itemName = "Item1"
+def newItemContent = "New content for Item1"
+
+def authHeaderValue = authenticateConfluence(username, password)
+def pageContent = downloadConfluencePage(authHeaderValue, confluenceBaseUrl, spaceKey, pageTitle)
+def tableContent = parseTableContent(pageContent)
+def item = findItemInArray(tableContent, itemName)
+
+if (item) {
+    println "Found item: ${item}"
+    tableContent = replaceItemContent(tableContent, itemName, newItemContent)
+    println "Updated table content: ${tableContent}"
+} else {
+    println "Item not found."
+}
+
+
+
 def requestPAT(username, password) {
     def url = "https://your-confluence-instance.com/rest/api/access-tokens/impersonation"
     def body = [
